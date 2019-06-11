@@ -1,0 +1,20 @@
+import numpy as np
+import talib
+args = []
+args.append(['002567',8,4,5,5])
+args.append(['002456',36,14,19,10])
+args.append(['600776',10,11,16,20])
+for arg in args:
+    ds = DataAPI.MktEqudGet(tradeDate=u"",secID=u"",ticker=arg[0],beginDate=u"19900101",endDate=u"21001231",isOpen=u"1",field=['ticker','tradeDate','closePrice','openPrice','accumAdjFactor','secShortName'],pandas="1")
+    adj = np.array(ds)[:,(4)].tolist();ds_close = np.array(ds)[:,(2)].tolist(); stockname = np.array(ds)[:,(5)].tolist()[0];
+    for i in range(len(ds_close)):
+        ds_close[i] *= adj[i]
+    today = float(int(ds_close[-1]*85))/100
+    ds_close.append(today)
+    ds_close = np.array(ds_close, dtype=float).reshape((-1))
+    while today < ds_close[-2]*1.12:
+        ma = talib.MA(ds_close,arg[1])
+        macd, macdsignal, macdhist = talib.MACD(ds_close, fastperiod=arg[2], slowperiod=arg[3], signalperiod=arg[4])
+        if ma[-1] > ma[-2] or macdhist[-1] > macdhist[-2]:
+            print stockname+':', "Buy at", today, ", Sell at", today-0.01; break;
+        today+=0.01;ds_close[-1] = today
