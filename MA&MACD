@@ -1,0 +1,220 @@
+import numpy as np
+import pandas as pd
+import datetime
+import talib
+
+def trade_macd_ma(ds, macdhist, ma, y1, y2):
+    profit = 1
+    day = 0
+    hold = False
+    ps = False
+    high = 0
+    
+    for i in range(len(ds)-int(y1*240), len(ds)-delay-int(y2*240)):
+        if (macdhist[i] < macdhist[i-1] and ma[i] < ma[i-1]):
+            ps = True
+        if ds[i] > high:
+            high = ds[i]
+        if not hold:
+            if (macdhist[i] > macdhist[i-1] or ma[i] > ma[i-1]) and ps:
+                buy = ds[i+delay] * 1.0003
+                hold = True
+                high = ds[i]
+        else:
+            day += 1
+            if (macdhist[i] < macdhist[i-1] and ma[i] < ma[i-1]) or ds[i] > 10000.3 * buy:
+                sell = ds[i+delay]
+                #profit += (sell / buy * 0.9985 - 1) * 1
+                profit *= sell / buy * 0.9987
+                #print ('sell' + str(sell))
+                hold = False
+                high = 0
+                ps = False
+    if hold:
+        sell = ds[len(ds)-delay-int(y2*240)-1]
+        profit *= sell / buy * 0.9987
+    if day != 0:
+        rate = (profit - 1) * 240 / day * 100
+    else:
+        rate = 0
+    return profit
+
+def trade_ma(ds_close, ds_open, ma, y1, y2):
+    profit = 1
+    day = 0
+    hold = False
+    ps = False
+    high = 0
+    
+    for i in range(len(ds_close)-int(y1*240), len(ds_close)-delay-int(y2*240)):
+        if ma[i] < ma[i-1]:
+            ps = True
+        if ds_close[i] > high:
+            high = ds_close[i]
+        if not hold:
+            if ma[i] > ma[i-1] and ps:
+                buy = ds_close[i+delay] * 1.0003
+                hold = True
+                high = ds_close[i]
+        else:
+            day += 1
+            if (ma[i] < ma[i-1]) or ds_close[i] > 10000.3 * buy:
+                sell = ds_close[i+delay]
+                #profit += (sell / buy * 0.9985 - 1) * 1
+                profit *= sell / buy * 0.9987
+                #print ('sell' + str(sell))
+                hold = False
+                ps = False
+                high = 0
+    if hold:
+        sell = ds_close[len(ds_close)-delay-int(y2*240)-1]
+        profit *= sell / buy * 0.9987
+    if day != 0:
+        rate = (profit - 1) * 240 / day * 100
+    else:
+        rate = 0
+    return profit
+
+#############################################################################
+stock_code = ['600775']
+ys = [0.75]
+y2 = 0
+total_ys = 0
+ys_len = len(ys)
+y1 = ys[-1]
+for y in ys:
+    total_ys += (y-y2)
+delay = 0
+p1,p2,p3 = 0,0,0
+profit1, profit2, profit3 = 0,0,0
+step = 1
+
+ds = DataAPI.MktEqudGet(tradeDate=u"",secID=u"",ticker=stock_code,beginDate=u"19900101",endDate=u"21001231",isOpen=u"1",field=['ticker','tradeDate','closePrice','openPrice','accumAdjFactor'],pandas="1")
+#print ds
+adj      = np.array(ds)[:,(4)].tolist()
+ds_close = np.array(ds)[:,(2)].tolist()
+ds_open  = np.array(ds)[:,(3)].tolist()
+
+
+for i in range(len(ds_close)):
+    ds_close[i] *= adj[i]
+    ds_open[i] *= adj[i]
+
+
+ds_close = np.array(ds_close, dtype=float).reshape((-1))
+ds_open = np.array(ds_open, dtype=float).reshape((-1))
+
+
+    
+#############################################################################
+print 'Stage 1:'
+p2p = []
+for i in range(2,200):
+    p2p.append([i])
+for y1 in ys:
+    if y1*240 >= len(ds_close):
+        y1 = len(ds_close) / 240 - 1 
+    for i in range(2,200):
+        ma = talib.MA(ds_close, i)
+        ma = ma.tolist()
+        profit_ = trade_ma(ds_close, ds_open, ma, y1, y2)
+        p2p[i-2].append(profit_)
+
+for p4p in p2p:
+    pro_p = 1
+    for i in range(1, ys_len+1):
+        pro_p *= p4p[i]
+    print p4p[0],pro_p
+    if pro_p > profit1:
+        profit3 = profit2
+        profit2 = profit1
+        p3 = p2
+        p2 = p1
+        p1 = p4p[0]
+        profit1 = pro_p
+    elif pro_p >  profit2:
+        profit3 = profit2
+        p3 = p2
+        p2 = p4p[0]
+        profit2 = pro_p
+    elif pro_p > profit3:
+        p3 = p4p[0]
+        profit3 = pro_p
+
+print 'p1: ' + str(p1), ' profit: ' + str(float(int(profit1*100))/100), '   @' + str(datetime.datetime.now()).split('.')[0]
+print 'p2: ' + str(p2), ' profit: ' + str(float(int(profit2*100))/100), '   @' + str(datetime.datetime.now()).split('.')[0]
+print 'p3: ' + str(p3), ' profit: ' + str(float(int(profit3*100))/100), '   @' + str(datetime.datetime.now()).split('.')[0]
+print
+
+ma = talib.MA(ds_close, p1)
+ma = ma.tolist()
+print
+
+
+###############################################################################
+print 'Stage 2:'
+profit1, profit2, profit3 = 0,0,0
+short1, long1, mid1 = 0, 0, 0
+short2, long2, mid2 = 0, 0, 0
+short3, long3, mid3 = 0, 0, 0
+print 'start: ' + str(ds_close[len(ds_close)-int(y1*240)]) + ', end: ' + str(ds_close[len(ds_close)-int(y2*240)-1]) + ', years: ' + str(total_ys)
+
+slm = []
+for i in range(2,50,step):
+    for j in range(i+1,100,2*step):
+        for k in range(5,300,5*step):
+            slm.append([str(i)+','+str(j)+','+str(k)])           
+for y1 in ys:
+    print 'period:', y1
+    for slm_ in slm:
+        i = int(slm_[0].split(',')[0])
+        j = int(slm_[0].split(',')[1])
+        k = int(slm_[0].split(',')[2])
+        macd, macdsignal, macdhist = talib.MACD(ds_close, fastperiod=i, slowperiod=j, signalperiod=k)
+        macdhist = macdhist.tolist()
+        profit_ = trade_macd_ma(ds_close, macdhist, ma, y1, y2)
+        slm_.append(profit_)
+
+profit = 0
+for slm_ in slm:
+    pro_p = 1
+    for i in range(1,ys_len+1):
+        pro_p *= slm_[i]
+    
+    if pro_p > 0.6 * profit1:
+        print slm_, pro_p
+        
+    if pro_p > profit1:
+        profit3 = profit2
+        short3 = short2
+        long3 = long2
+        mid3 = mid2
+        
+        profit2 = profit1
+        short2 = short1
+        long2 = long1
+        mid2 = mid1
+        
+        profit1 = pro_p
+        short1 =  int(slm_[0].split(',')[0])
+        long1 =   int(slm_[0].split(',')[1])
+        mid1 =    int(slm_[0].split(',')[2])
+    elif pro_p > profit2:
+        profit3 = profit2
+        short3 = short2
+        long3 = long2
+        mid3 = mid2
+        
+        profit2 = pro_p
+        short2 =  int(slm_[0].split(',')[0])
+        long2 =   int(slm_[0].split(',')[1])
+        mid2 =    int(slm_[0].split(',')[2])
+    elif pro_p > profit3:
+        profit3 = pro_p
+        short3 =  int(slm_[0].split(',')[0])
+        long3 =   int(slm_[0].split(',')[1])
+        mid3 =    int(slm_[0].split(',')[2])
+    
+print (stock_code[0] + ' p1: ' + str(p1) + ' short1: ' +str(short1) + ' long1: ' + str(long1) + ' mid1: ' + str(mid1) + ' profit: '+ str(float(int(profit1*100))/100) + ' done! @' + str(datetime.datetime.now()).split('.')[0])
+print (stock_code[0] + ' p1: ' + str(p1) + ' short2: ' +str(short2) + ' long2: ' + str(long2) + ' mid2: ' + str(mid2) + ' profit: '+ str(float(int(profit2*100))/100) + ' done! @' + str(datetime.datetime.now()).split('.')[0])
+print (stock_code[0] + ' p1: ' + str(p1) + ' short3: ' +str(short3) + ' long3: ' + str(long3) + ' mid3: ' + str(mid3) + ' profit: '+ str(float(int(profit3*100))/100) + ' done! @' + str(datetime.datetime.now()).split('.')[0])
